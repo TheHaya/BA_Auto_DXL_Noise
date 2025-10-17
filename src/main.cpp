@@ -16,14 +16,23 @@ const float DEG_PER_TICK = 360.0f / 4096.0f;
 const uint8_t TICK_PER_DEG = 4096 / 360;
 const float RPM_PER_VEL = 0.229;
 using namespace ControlTableItem;
-const int32_t calibrateStart = -2000;
-const int32_t calibrateEnd = 6000;
+const int32_t checkEndStart = -2000;
+const int32_t checkEndEnd = 6000;
+const int32_t calibrateCurrentCCW = 1700;
+const int32_t calibrateCurrentCW = 2400;
+const int32_t mercyToleranceDeg = 5;
 
-float startCurrent = 150;
-float calCur1, calCur2, calCur3, calCur4;
-uint32_t startTick, endTick;
+int32_t stoppedTick;
+float startCurrent = 35000;
+float calCur1, calCur2, calCur3, calCur4, calCur5;
+uint32_t startTick, endTick, midTick;
 bool cancelled;
-int32_t curpos;
+int32_t curPos;
+float curCur;
+float userRPM, RPM1, RPM2, RPM3, RPM4, RPM5;
+float tarVolt = 5;
+float sollDegTotal;
+int32_t userGoto;
 
 void setup(){
   Serial.begin(115200);
@@ -43,11 +52,11 @@ int32_t DegToTick(float deg){
   return deg * TICK_PER_DEG;
 }
 
-float TickToDeg(uint8_t tick){
+float TickToDeg(int32_t tick){
   return tick * DEG_PER_TICK;
 }
 
-uint32_t rpmToVel(int rpm){
+uint32_t rpmToVel(float rpm){
   return round(rpm / RPM_PER_VEL);
 }
 
@@ -59,7 +68,16 @@ float getDegPosition(){
   return TickToDeg(dxl.getPresentPosition(DID, UNIT_RAW));
 }
 
-void driveTo(uint8_t tick, int rpm, uint8_t DYN_ID = 1){
+void dxlInit(){
+  cancelled = false;
+  calCur1 = 0;
+  calCur2 = 0;
+  calCur3 = 0;
+  calCur4 = 0;
+  calCur5 = 0;
+}
+
+void driveTo(int32_t tick, float rpm, uint8_t DYN_ID = 1){
   dxl.torqueOff(DYN_ID);
   dxl.writeControlTableItem(PROFILE_VELOCITY, DYN_ID, rpmToVel(rpm)); 
   dxl.writeControlTableItem(PROFILE_ACCELERATION, DYN_ID, round(rpmToVel(rpm) / 3));
@@ -67,13 +85,15 @@ void driveTo(uint8_t tick, int rpm, uint8_t DYN_ID = 1){
   dxl.setGoalPosition(DYN_ID, tick, UNIT_RAW);
 }
 
-bool reachedGoal(int32_t target_tick, uint8_t error_tick = 1, uint32_t timeout = 20000, uint8_t DYN_ID = 1){
+bool reachedGoal(int32_t target_tick, uint8_t measureSpd = 0, uint8_t measureMode = 0, uint8_t error_tick = 1, uint32_t timeout = 20000, uint8_t DYN_ID = 1){
   elapsedMillis polling;
   elapsedMillis t;
+  float curTolerance = 5;
 
   while(t < timeout && cancelled == false){
-    if(polling < 5){
-      curpos = getTickPosition();
+    if(polling > 5){
+      curPos = getTickPosition();
+      curCur = dxl.getPresentCurrent(DID, UNIT_MILLI_AMPERE);
 
       if (Serial.available()) {
         String stopCommand = Serial.readStringUntil('\n');
@@ -84,13 +104,96 @@ bool reachedGoal(int32_t target_tick, uint8_t error_tick = 1, uint32_t timeout =
           break;
         }
       }
+      if(measureMode == 0){
+        switch(measureSpd){
+          case 1: if(curCur > calCur1 + curTolerance){
+            dxl.setGoalPosition(DID, curPos, UNIT_RAW);
+            return false;} 
+            break;
+          case 2: if(curCur > calCur2 + curTolerance){
+            dxl.setGoalPosition(DID, curPos, UNIT_RAW);
+            return false;} 
+            break;
+          case 3: if(curCur > calCur3 + curTolerance){
+            dxl.setGoalPosition(DID, curPos, UNIT_RAW);
+            return false;} 
+            break;
+          case 4: if(curCur > calCur4 + curTolerance){
+            dxl.setGoalPosition(DID, curPos, UNIT_RAW);
+            return false;} 
+            break;
+          case 5: if(curCur > calCur5 + curTolerance){
+            stoppedTick = getTickPosition();
+            dxl.setGoalPosition(DID, curPos, UNIT_RAW);
+            return false;} 
+            break;
+          default: break;
+        }
+      }
+
+      if(measureMode == 1){
+        switch(measureSpd){
+          case 1: if(calCur1 < curCur){calCur1 = curCur;} break;
+          case 2: if(calCur2 < curCur){calCur2 = curCur;} break;
+          case 3: if(calCur3 < curCur){calCur3 = curCur;} break;
+          case 4: if(calCur4 < curCur){calCur4 = curCur;} break;
+          case 5: if(calCur5 < curCur){calCur5 = curCur;} break;
+          default: break;
+        }
+        if(fabsf(curCur) >= startCurrent){
+          dxl.setGoalPosition(DID, curPos, UNIT_RAW);
+          return false;
+        }
+      }
+
+      if ((fabsf(curPos - target_tick) <= error_tick) && curPos - target_tick < 0) {
+        for(int i = 0; i<5 ; i++){
+          dxl.setGoalPosition(DID, getTickPosition() + 1, UNIT_RAW);
+        } 
+        return true;
+      }
+      else if ((fabsf(curPos - target_tick) <= error_tick) && curPos - target_tick > 0) {
+        for(int i = 0; i<5 ; i++){
+          dxl.setGoalPosition(DID, getTickPosition() - 1, UNIT_RAW);
+        } 
+        return true;
+      }
+      else if (curPos == target_tick){
+        return true;
+      }
+      polling = 0;
+    }
+  }
+  dxl.setGoalPosition(DID, getTickPosition(), UNIT_RAW);
+  return false;
+}
+
+void calibrateCurrents(){
+  for(int i = 1; i <= 5; i++){
+    float calRPM = userRPM/i;
+
+    driveTo(calibrateCurrentCCW, calRPM);
+    reachedGoal(calibrateCurrentCCW, i, 1);
+    driveTo(calibrateCurrentCW, calRPM);
+    reachedGoal(calibrateCurrentCW, i, 1);
+    switch(i){
+      case 1: RPM1 = calRPM; break;
+      case 2: RPM2 = calRPM; break;
+      case 3: RPM3 = calRPM; break;
+      case 4: RPM4 = calRPM; break;
+      case 5: RPM5 = calRPM; break;
+      default: break;
     }
   }
 }
 
 void checkEnds(){
-  driveTo(calibrateStart, 30);
-  if(reachedGoal(calibrateStart) == false){
+  int32_t mercyStart = DegToTick(360 - sollDegTotal - mercyToleranceDeg);
+  int32_t mercyEnd = DegToTick(sollDegTotal + mercyToleranceDeg);
+  driveTo(mercyStart, RPM1);
+  reachedGoal(mercyStart, 1);
+  driveTo(checkEndStart, RPM5);
+  if(reachedGoal(checkEndStart, 5) == false){
     startTick = getTickPosition();
   }
   for(int i = 0; i < 5; i++){
@@ -99,16 +202,62 @@ void checkEnds(){
      dxl.ledOn(1);
     delay(100);
   } 
-  driveTo(calibrateEnd, 30);
-  if(reachedGoal(calibrateEnd) == false){
+  driveTo(mercyEnd, RPM1);
+  reachedGoal(mercyEnd, 1);
+  driveTo(checkEndEnd, RPM5);
+  if(reachedGoal(checkEndEnd, 5) == false){
     endTick = getTickPosition();
   }
+  for(int i = 0; i < 5; i++){
+    dxl.ledOff(1);
+    delay(100);
+     dxl.ledOn(1);
+    delay(100);
+  }
+  midTick = endTick - startTick; 
+  driveTo(midTick, RPM1);
+  reachedGoal(midTick, 1);
 }
 
 void sim_movement(){
-
+  int32_t mercyStart = DegToTick(360 - sollDegTotal - mercyToleranceDeg);
+  int32_t mercyEnd = DegToTick(sollDegTotal + mercyToleranceDeg);
+  float simRPM;
+  for(int i = 1; i <= 5; i++){
+    simRPM = userRPM/i;
+    driveTo(mercyStart, simRPM);
+    reachedGoal(mercyStart, i);
+    driveTo(mercyEnd, simRPM);
+    reachedGoal(mercyEnd, i);
+  }
+  driveTo(midTick, userRPM);
+  reachedGoal(midTick);
+  dxl.ledOff(DID);
 }
 
 void loop(){
-  sim_movement();
+  if(Serial.available()){
+    String command = Serial.readStringUntil('\n');
+    command.trim();
+
+    // EINGABE VON PYTHON
+    if(command.startsWith("SETV:")){tarVolt = command.substring(5).toFloat();}
+    if(command.startsWith("SETW:")){sollDegTotal = command.substring(5).toFloat();}
+    if(command.startsWith("SETS:")){userRPM = command.substring(5).toFloat();}
+
+    if(command.startsWith("goto:")){userGoto = command.substring(5).toFloat();}
+
+    else if(command == "GO"){
+      dxlInit();
+      calibrateCurrents();
+      checkEnds();
+      sim_movement();
+      if(cancelled == false){
+        Serial.println("READY");
+      } else{
+        Serial.println("CANCEL");
+        cancelled = false;
+      }
+    }
+  }
 }

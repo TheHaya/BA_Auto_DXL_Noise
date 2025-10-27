@@ -3,6 +3,8 @@
 #include <elapsedMillis.h>
 #include <iostream>
 
+
+
 #define DXL_SERIAL Serial1
 #define DEBUG_SERIAL Serial
 
@@ -192,9 +194,9 @@ void calibrateCurrents(){
       case 5: RPM5 = calRPM; break;
       default: break;
     }
-    driveTo(zeroTick, RPM1);
-    reachedGoal(zeroTick, RPM1);
   }
+  driveTo(zeroTick, RPM1);
+  reachedGoal(zeroTick, RPM1);
 }
 
 void checkEnds(){
@@ -224,9 +226,6 @@ void checkEnds(){
      dxl.ledOn(1);
     delay(100);
   }
-  midTick = (endTick + startTick)/2; 
-  driveTo(midTick, RPM1);
-  reachedGoal(midTick, 1);
 }
 
 void sim_movement(){
@@ -235,7 +234,7 @@ void sim_movement(){
   float simRPM;
   for(int i = 1; i <= 5; i++){
     simRPM = userRPM/i;
-    if(i == 1){
+    /*if(i == 1){
       for(int j = 0; j < 2; j++)
       {
         driveTo(mercyStart, simRPM);
@@ -243,7 +242,7 @@ void sim_movement(){
         driveTo(mercyEnd, simRPM);
         reachedGoal(mercyEnd, i);
       }
-    }
+    }*/
     driveTo(mercyStart, simRPM);
     reachedGoal(mercyStart, i);
     driveTo(mercyEnd, simRPM);
@@ -254,19 +253,13 @@ void sim_movement(){
   dxl.ledOff(DID);
 }
 
-float calc_duration(){
-  float duration = 0;
-  for(int i = 1; i <= 5; i++){
-    duration += (userRPM/i)/60;
-  }
-  return duration;
-}
-
 void test_movement(){
+  elapsedMillis start;
+  elapsedMillis end;
   float simRPM;
   for(int i = 1; i <= 5; i++){
     simRPM = userRPM/i;
-    if(i == 1){
+    /*if(i == 1){
       for(int j = 0; j < 2; j++)
       {
         driveTo(1800, simRPM);
@@ -274,11 +267,23 @@ void test_movement(){
         driveTo(2300, simRPM);
         reachedGoal(2300, i);
       }
+    }*/
+    start = 0;
+    while(true){
+      if(start > 500){
+        driveTo(0, simRPM);
+        reachedGoal(0, i);
+        break;
+      }
     }
-    driveTo(1800, simRPM);
-    reachedGoal(1800, i);
-    driveTo(2300, simRPM);
-    reachedGoal(2300, i);
+    end = 0;
+    while(true){
+      if(end > 500){
+        driveTo(4096, simRPM);
+        reachedGoal(4096, i);
+        break;
+      }
+    }
   }
   driveTo(zeroTick, userRPM);
   reachedGoal(zeroTick);
@@ -301,6 +306,9 @@ void loop(){
       dxlInit();
       calibrateCurrents();
       //checkEnds();
+      driveTo(4096, RPM1);
+      reachedGoal(4096, 1);
+
       if(cancelled == false){
         Serial.println("READY");
       } else{

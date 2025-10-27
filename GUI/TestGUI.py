@@ -232,10 +232,26 @@ def go_zero(stop_event, on_finish):
 
     root.after(0, on_finish)
 
-def run_pico(ser_Ard, data_arr):
+def calc_duration(gesSpeed):
+    maxSpeed = float(gesSpeed)
+    duration = 0
+    for i in range(1, 6, 1):
+        duration += 2 * pow(maxSpeed/(i*60), -1)
+
+    ###
+    duration = duration + 5
+    ###
+    return duration
+
+def calc_rel_angle(time_arr):
+    for i in range(1, 6, 1):
+        full 
+
+def run_pico(ser_Ard, time_arr):
     # pico_demo.exe neben der GUI oder mit absolutem Pfad
     out_found = False
-    picoTime = 5
+    txtGeschw = float(txtSpeed.get().strip().replace(',', '.'))
+    picoTime = calc_duration(txtGeschw)
     picoTimeStr = str(picoTime)
     p = subprocess.Popen(
         [picoEXE, f"--time={picoTimeStr}"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
@@ -250,15 +266,17 @@ def run_pico(ser_Ard, data_arr):
             ser_Ard.write(b"START\n")
             ser_Ard.flush()
             print("NACH: PICO_START")
+            starttime = time.time()
 
         if out_found is True:
-            data_arr.append(float(line))
+            time_arr.append(float(line))
 
         if line.startswith("OUTPUT"):
-            print("OUTPUT GEFUNDEN")
             out_found = True
-
-    print(data_arr)
+    endtime = time.time()
+    print(time_arr)
+    finishtime = endtime - starttime
+    print(finishtime)
     p.terminate()
 
 # --------------- CALC BUTTON

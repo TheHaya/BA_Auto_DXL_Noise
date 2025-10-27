@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <Dynamixel2Arduino.h>
 #include <elapsedMillis.h>
+#include <iostream>
 
 #define DXL_SERIAL Serial1
 #define DEBUG_SERIAL Serial
@@ -13,19 +14,21 @@ const uint32_t DXL_BAUD = 1000000;
 Dynamixel2Arduino dxl(DXL_SERIAL, DXL_DIR_PIN);
 
 const float DEG_PER_TICK = 360.0f / 4096.0f;
-const uint8_t TICK_PER_DEG = 4096 / 360;
+const float TICK_PER_DEG = 4096.0f / 360.0f;
 const float RPM_PER_VEL = 0.229;
 using namespace ControlTableItem;
 const int32_t checkEndStart = -2000;
 const int32_t checkEndEnd = 6000;
 const int32_t calibrateCurrentCCW = 1700;
 const int32_t calibrateCurrentCW = 2400;
-const int32_t mercyToleranceDeg = 5;
+const int32_t zeroTick = 2050;
+const float mercyToleranceTick = 15;
+const float checkEndsToleranceDeg = 10;
 
 int32_t stoppedTick;
-float startCurrent = 35000;
+float startCurrent = 180;
 float calCur1, calCur2, calCur3, calCur4, calCur5;
-uint32_t startTick, endTick, midTick;
+int32_t startTick, endTick, midTick;
 bool cancelled;
 int32_t curPos;
 float curCur;
@@ -93,7 +96,7 @@ bool reachedGoal(int32_t target_tick, uint8_t measureSpd = 0, uint8_t measureMod
   while(t < timeout && cancelled == false){
     if(polling > 5){
       curPos = getTickPosition();
-      curCur = dxl.getPresentCurrent(DID, UNIT_MILLI_AMPERE);
+      curCur = fabsf(dxl.getPresentCurrent(DID, UNIT_MILLI_AMPERE));
 
       if (Serial.available()) {
         String stopCommand = Serial.readStringUntil('\n');
@@ -171,7 +174,12 @@ bool reachedGoal(int32_t target_tick, uint8_t measureSpd = 0, uint8_t measureMod
 void calibrateCurrents(){
   for(int i = 1; i <= 5; i++){
     float calRPM = userRPM/i;
-
+    if(i == 1){
+      driveTo(calibrateCurrentCCW, calRPM);
+      reachedGoal(calibrateCurrentCCW, i, 1);
+      driveTo(calibrateCurrentCW, calRPM);
+      reachedGoal(calibrateCurrentCW, i, 1);
+    }
     driveTo(calibrateCurrentCCW, calRPM);
     reachedGoal(calibrateCurrentCCW, i, 1);
     driveTo(calibrateCurrentCW, calRPM);
@@ -184,17 +192,19 @@ void calibrateCurrents(){
       case 5: RPM5 = calRPM; break;
       default: break;
     }
+    driveTo(zeroTick, RPM1);
+    reachedGoal(zeroTick, RPM1);
   }
 }
 
 void checkEnds(){
-  int32_t mercyStart = DegToTick(360 - sollDegTotal - mercyToleranceDeg);
-  int32_t mercyEnd = DegToTick(sollDegTotal + mercyToleranceDeg);
+  int32_t mercyStart = DegToTick(360 - sollDegTotal + checkEndsToleranceDeg);
+  int32_t mercyEnd = DegToTick(sollDegTotal - checkEndsToleranceDeg);
   driveTo(mercyStart, RPM1);
   reachedGoal(mercyStart, 1);
   driveTo(checkEndStart, RPM5);
   if(reachedGoal(checkEndStart, 5) == false){
-    startTick = getTickPosition();
+    startTick = stoppedTick;
   }
   for(int i = 0; i < 5; i++){
     dxl.ledOff(1);
@@ -206,7 +216,7 @@ void checkEnds(){
   reachedGoal(mercyEnd, 1);
   driveTo(checkEndEnd, RPM5);
   if(reachedGoal(checkEndEnd, 5) == false){
-    endTick = getTickPosition();
+    endTick = stoppedTick;
   }
   for(int i = 0; i < 5; i++){
     dxl.ledOff(1);
@@ -214,24 +224,64 @@ void checkEnds(){
      dxl.ledOn(1);
     delay(100);
   }
-  midTick = endTick - startTick; 
+  midTick = (endTick + startTick)/2; 
   driveTo(midTick, RPM1);
   reachedGoal(midTick, 1);
 }
 
 void sim_movement(){
-  int32_t mercyStart = DegToTick(360 - sollDegTotal - mercyToleranceDeg);
-  int32_t mercyEnd = DegToTick(sollDegTotal + mercyToleranceDeg);
+  int32_t mercyStart = startTick + mercyToleranceTick;
+  int32_t mercyEnd = endTick - mercyToleranceTick;
   float simRPM;
   for(int i = 1; i <= 5; i++){
     simRPM = userRPM/i;
+    if(i == 1){
+      for(int j = 0; j < 2; j++)
+      {
+        driveTo(mercyStart, simRPM);
+        reachedGoal(mercyStart, i);
+        driveTo(mercyEnd, simRPM);
+        reachedGoal(mercyEnd, i);
+      }
+    }
     driveTo(mercyStart, simRPM);
     reachedGoal(mercyStart, i);
     driveTo(mercyEnd, simRPM);
     reachedGoal(mercyEnd, i);
   }
-  driveTo(midTick, userRPM);
-  reachedGoal(midTick);
+  driveTo(zeroTick, userRPM);
+  reachedGoal(zeroTick);
+  dxl.ledOff(DID);
+}
+
+float calc_duration(){
+  float duration = 0;
+  for(int i = 1; i <= 5; i++){
+    duration += (userRPM/i)/60;
+  }
+  return duration;
+}
+
+void test_movement(){
+  float simRPM;
+  for(int i = 1; i <= 5; i++){
+    simRPM = userRPM/i;
+    if(i == 1){
+      for(int j = 0; j < 2; j++)
+      {
+        driveTo(1800, simRPM);
+        reachedGoal(1800, i);
+        driveTo(2300, simRPM);
+        reachedGoal(2300, i);
+      }
+    }
+    driveTo(1800, simRPM);
+    reachedGoal(1800, i);
+    driveTo(2300, simRPM);
+    reachedGoal(2300, i);
+  }
+  driveTo(zeroTick, userRPM);
+  reachedGoal(zeroTick);
   dxl.ledOff(DID);
 }
 
@@ -250,14 +300,23 @@ void loop(){
     else if(command == "GO"){
       dxlInit();
       calibrateCurrents();
-      checkEnds();
-      sim_movement();
+      //checkEnds();
       if(cancelled == false){
         Serial.println("READY");
       } else{
         Serial.println("CANCEL");
         cancelled = false;
       }
+      while(true){
+        String s = Serial.readStringUntil('\n');
+        s.trim();
+        delay(0.2);
+        if(s == "START"){
+          test_movement();
+          break;
+        }
+      }
+      Serial.println("FINISH");
     }
   }
 }

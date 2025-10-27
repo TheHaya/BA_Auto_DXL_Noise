@@ -2,7 +2,7 @@ import tkinter as tk
 from tkinter import ttk
 from PIL import ImageTk, Image
 import sv_ttk
-import serial, time, threading, json, os, re
+import serial, time, threading, json, sys, re, subprocess
 from itertools import cycle
 from datetime import datetime
 import pandas as pd
@@ -10,7 +10,7 @@ import xlsxwriter
 
 ARDUINO_PORT1 = "COM3"
 ARDUINO_PORT2 = "COM9"
-
+picoEXE = r"C:\Users\wonga\Documents\PlatformIO\Projects\BA_Servo_Noise\Pico_Demo/pico_demo.exe"
 
 calc_win = None
 ser_Arduino = None
@@ -68,6 +68,8 @@ def open_first_available(ports=(ARDUINO_PORT1, ARDUINO_PORT2), baud=115200, time
 
 def write_serial(gesamtV, gesamtW, gesamtS, stop_event, on_finish):
     try:
+        pico_data = []
+
         ser_Arduino = open_first_available((ARDUINO_PORT1, ARDUINO_PORT2), baud=115200, timeout=5)
         time.sleep(0.2)
         ser_Arduino.write(f"SETV:{gesamtV}\n".encode())
@@ -78,7 +80,6 @@ def write_serial(gesamtV, gesamtW, gesamtS, stop_event, on_finish):
         time.sleep(0.2)
         print("speed ist", gesamtS)
         print("Sende: GO") #debug
-        
         ser_Arduino.write(b"GO\n")
 
         ser_Arduino.timeout = 0.1
@@ -91,9 +92,16 @@ def write_serial(gesamtV, gesamtW, gesamtS, stop_event, on_finish):
                 break
 
             line = ser_Arduino.readline().decode('utf-8').strip()
-            print("Empfangen:", line) #debug
+            #print("Empfangen:", line) #debug
             
             if line == 'READY':
+                print("start run_pico")
+                #threading.Thread(target=run_pico, args=(ser_Arduino, pico_data), daemon=True).start()
+                run_pico(ser_Arduino, pico_data)
+                #print("start fetch_pico")
+                #threading.Thread(target=fetch_pico, args=(ser_Arduino, pico_data), daemon=True).start()
+            elif line == 'FINISH':
+                print("FINISH empfangen")
                 break
             elif line == 'CANCEL':
                 break
@@ -104,7 +112,6 @@ def write_serial(gesamtV, gesamtW, gesamtS, stop_event, on_finish):
         print("Fehler bei Serial: ", e) #debug
 
     root.after(0, on_finish)
-
 
 def close_window():
     root.destroy()
@@ -225,6 +232,35 @@ def go_zero(stop_event, on_finish):
 
     root.after(0, on_finish)
 
+def run_pico(ser_Ard, data_arr):
+    # pico_demo.exe neben der GUI oder mit absolutem Pfad
+    out_found = False
+    picoTime = 5
+    picoTimeStr = str(picoTime)
+    p = subprocess.Popen(
+        [picoEXE, f"--time={picoTimeStr}"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        text=True, bufsize=1
+    )
+    for line in p.stdout:
+        line = line.strip()
+        print(line)
+
+        if line.startswith("PICO_START"):
+            print("Sende: PICO_START") #debug
+            ser_Ard.write(b"START\n")
+            ser_Ard.flush()
+            print("NACH: PICO_START")
+
+        if out_found is True:
+            data_arr.append(float(line))
+
+        if line.startswith("OUTPUT"):
+            print("OUTPUT GEFUNDEN")
+            out_found = True
+
+    print(data_arr)
+    p.terminate()
+
 # --------------- CALC BUTTON
 
 def open_calc_win():
@@ -295,14 +331,18 @@ def open_calc_win():
     wait_win.resizable(False, False)
     ttk.Label(wait_win, text="Bitte warten...").pack(pady=30)
 
+    
     stop_event = threading.Event()    
     def cancel_close():
         stop_event.set()
         wait_win.destroy()
     wait_win.protocol("WM_DELETE_WINDOW", cancel_close)
+
+
     threading.Thread(target=write_serial, args=(txtSoll, txtWinkel, txtGeschw, 
                                                    stop_event, close_wait_results), daemon=True).start()
 
+    
 # --------------- OPEN ZERO WINDOW
 
 def open_zero_window():

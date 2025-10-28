@@ -236,16 +236,16 @@ def calc_duration(gesSpeed):
     maxSpeed = float(gesSpeed)
     duration = 0
     for i in range(1, 6, 1):
-        duration += 2 * pow(maxSpeed/(i*60), -1)
+        duration += 2 * 60/(maxSpeed/i)
 
     ###
-    duration = duration + 5
     ###
     return duration
 
 def calc_rel_angle(time_arr):
     for i in range(1, 6, 1):
-        full 
+        return
+        
 
 def run_pico(ser_Ard, time_arr):
     # pico_demo.exe neben der GUI oder mit absolutem Pfad

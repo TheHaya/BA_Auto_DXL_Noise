@@ -46,10 +46,10 @@ void setup(){
 
   dxl.torqueOff(DID);
   dxl.setOperatingMode(DID, OP_EXTENDED_POSITION);
-  dxl.writeControlTableItem(DRIVE_MODE, DID, 1);
+  dxl.writeControlTableItem(DRIVE_MODE, DID, 0b101);
   dxl.writeControlTableItem(HOMING_OFFSET, DID, 0);
-  dxl.writeControlTableItem(PROFILE_VELOCITY, DID, 40);
-  dxl.writeControlTableItem(PROFILE_ACCELERATION, DID, 15);
+  dxl.writeControlTableItem(PROFILE_VELOCITY, DID, 1000);
+  dxl.writeControlTableItem(PROFILE_ACCELERATION, DID, 500);
   dxl.torqueOn(DID);
 }
 
@@ -73,6 +73,13 @@ float getDegPosition(){
   return TickToDeg(dxl.getPresentPosition(DID, UNIT_RAW));
 }
 
+uint32_t rpmToTime(int32_t goalTick, float rpm){
+  uint32_t out_time = 60/rpm*1000;
+  int32_t diff_pos = abs(dxl.getPresentPosition(DID, UNIT_RAW) - goalTick);
+  out_time = out_time * diff_pos/4096;
+  return out_time;
+}
+
 void dxlInit(){
   cancelled = false;
   calCur1 = 0;
@@ -82,10 +89,19 @@ void dxlInit(){
   calCur5 = 0;
 }
 
+/*
 void driveTo(int32_t tick, float rpm, uint8_t DYN_ID = 1){
   dxl.torqueOff(DYN_ID);
   dxl.writeControlTableItem(PROFILE_VELOCITY, DYN_ID, rpmToVel(rpm)); 
   dxl.writeControlTableItem(PROFILE_ACCELERATION, DYN_ID, round(rpmToVel(rpm) / 3));
+  dxl.torqueOn(DYN_ID);
+  dxl.setGoalPosition(DYN_ID, tick, UNIT_RAW);
+}*/
+
+void driveTo(int32_t tick, float rpm, uint8_t DYN_ID = 1){
+  dxl.torqueOff(DYN_ID);
+  dxl.writeControlTableItem(PROFILE_VELOCITY, DYN_ID, rpmToTime(tick, rpm)); 
+  dxl.writeControlTableItem(PROFILE_ACCELERATION, DYN_ID, 0);
   dxl.torqueOn(DYN_ID);
   dxl.setGoalPosition(DYN_ID, tick, UNIT_RAW);
 }
@@ -253,43 +269,6 @@ void sim_movement(){
   dxl.ledOff(DID);
 }
 
-void test_movement(){
-  elapsedMillis start;
-  elapsedMillis end;
-  float simRPM;
-  for(int i = 1; i <= 5; i++){
-    simRPM = userRPM/i;
-    /*if(i == 1){
-      for(int j = 0; j < 2; j++)
-      {
-        driveTo(1800, simRPM);
-        reachedGoal(1800, i);
-        driveTo(2300, simRPM);
-        reachedGoal(2300, i);
-      }
-    }*/
-    start = 0;
-    while(true){
-      if(start > 500){
-        driveTo(0, simRPM);
-        reachedGoal(0, i);
-        break;
-      }
-    }
-    end = 0;
-    while(true){
-      if(end > 500){
-        driveTo(4096, simRPM);
-        reachedGoal(4096, i);
-        break;
-      }
-    }
-  }
-  driveTo(zeroTick, userRPM);
-  reachedGoal(zeroTick);
-  dxl.ledOff(DID);
-}
-
 void loop(){
   if(Serial.available()){
     String command = Serial.readStringUntil('\n');
@@ -305,9 +284,7 @@ void loop(){
     else if(command == "GO"){
       dxlInit();
       calibrateCurrents();
-      //checkEnds();
-      driveTo(4096, RPM1);
-      reachedGoal(4096, 1);
+      checkEnds();
 
       if(cancelled == false){
         Serial.println("READY");
@@ -320,7 +297,7 @@ void loop(){
         s.trim();
         delay(0.2);
         if(s == "START"){
-          test_movement();
+          sim_movement();
           break;
         }
       }

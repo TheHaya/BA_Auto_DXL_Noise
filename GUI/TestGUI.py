@@ -9,8 +9,10 @@ import pandas as pd
 import xlsxwriter
 
 ARDUINO_PORT1 = "COM3"
-ARDUINO_PORT2 = "COM9"
+ARDUINO_PORT2 = "COM5"
+ARDUINO_PORT3 = "COM9"
 picoEXE = r"C:\Users\wonga\Documents\PlatformIO\Projects\BA_Servo_Noise\Pico_Demo/pico_demo.exe"
+
 
 calc_win = None
 ser_Arduino = None
@@ -54,7 +56,7 @@ def RegexMultimeter(output):
     return None
 
 # --------------- SERIAL MIT SERVO
-def open_first_available(ports=(ARDUINO_PORT1, ARDUINO_PORT2), baud=115200, timeout=2):
+def open_first_available(ports=(ARDUINO_PORT1, ARDUINO_PORT2, ARDUINO_PORT3), baud=115200, timeout=2):
     last = None
     for p in ports:
         try:
@@ -68,9 +70,11 @@ def open_first_available(ports=(ARDUINO_PORT1, ARDUINO_PORT2), baud=115200, time
 
 def write_serial(gesamtV, gesamtW, gesamtS, stop_event, on_finish):
     try:
-        pico_data = []
+        pico_time = []
+        pico_volt = []
+        pico_angle = []
 
-        ser_Arduino = open_first_available((ARDUINO_PORT1, ARDUINO_PORT2), baud=115200, timeout=5)
+        ser_Arduino = open_first_available((ARDUINO_PORT1, ARDUINO_PORT2, ARDUINO_PORT3), baud=115200, timeout=5)
         time.sleep(0.2)
         ser_Arduino.write(f"SETV:{gesamtV}\n".encode())
         time.sleep(0.2)
@@ -93,18 +97,57 @@ def write_serial(gesamtV, gesamtW, gesamtS, stop_event, on_finish):
 
             line = ser_Arduino.readline().decode('utf-8').strip()
             #print("Empfangen:", line) #debug
-            
+            if line.startswith("ANGLE"):
+                global totalTicks
+                totalTicks = float(line[5::])
+
             if line == 'READY':
                 print("start run_pico")
                 #threading.Thread(target=run_pico, args=(ser_Arduino, pico_data), daemon=True).start()
-                run_pico(ser_Arduino, pico_data)
+                run_pico(ser_Arduino, pico_time, pico_volt)
                 #print("start fetch_pico")
                 #threading.Thread(target=fetch_pico, args=(ser_Arduino, pico_data), daemon=True).start()
             elif line == 'FINISH':
-                print("FINISH empfangen")
+                finish_time = time.time()
+                totalDuration = finish_time - starttime
+                print(f"FINISH empfangen, total Dauer: {totalDuration}")
+                calc_rel_angle(pico_time, pico_angle)
                 break
             elif line == 'CANCEL':
                 break
+            elif line.startswith("DELAY1"):
+                global delaytime1
+                delaytime1 = float(line[6::])
+                print(f"{delaytime1}")
+                
+            elif line.startswith("DELAY2"):
+                global delaytime2
+                delaytime2 = float(line[6::])
+                print(f"{delaytime2}")
+                
+            elif line.startswith("DELAY3"):
+                global delaytime3
+                delaytime3 = float(line[6::])
+                print(f"{delaytime3}")
+
+            ''' 
+            elif line.startswith("TIME"):
+                global tottime
+                tottime = float(line[4::])
+                print(f"{tottime}")
+                
+            elif line.startswith("TIM2"):
+                global tottime2
+                tottime2 = float(line[4::])
+                print(f"{tottime2}")
+                
+            elif line.startswith("TIM3"):
+                global tottime3
+                tottime3 = float(line[4::])
+                print(f"{tottime3}")
+            '''
+           
+            
             
         ser_Arduino.close()
 
@@ -233,25 +276,94 @@ def go_zero(stop_event, on_finish):
     root.after(0, on_finish)
 
 def calc_duration(gesSpeed):
-    maxSpeed = float(gesSpeed)
+    totalDelay = delaytime1 + delaytime2 + delaytime3
+    userRPM = float(gesSpeed)
     duration = 0
-    for i in range(1, 6, 1):
-        duration += 2 * 60/(maxSpeed/i)
-
-    ###
-    ###
+    circleTick = 4096
+    for i in range(1, 4, 1):
+        divSpeed = userRPM/2
+        duration += 2 * (60/(divSpeed*i)) * (totalTicks/circleTick)
+    duration = duration + totalDelay # wegen servo delay für jeden antrieb
     return duration
 
-def calc_rel_angle(time_arr):
-    for i in range(1, 6, 1):
-        return
-        
+def calc_individual_turns(gesSpeed, turnNumber):
+    userRPM = float(gesSpeed)
+    total_duration = 0
+    circleTick = 4096
+    for i in range(1, 4, 1):
+        divSpeed = userRPM/2
+        turn_duration = (60/(divSpeed*i)) * (totalTicks/circleTick)
+        total_duration += 2 * (60/(divSpeed*i)) * (totalTicks/circleTick)
+        match i:
+            case 1:
+                dur1 = total_duration + delaytime1
+                turn1 = turn_duration + (delaytime1 / 2)
+            case 2:
+                dur2 = total_duration + delaytime1 + delaytime2
+                turn2 = turn_duration + (delaytime2 / 2)
+            case 3:
+                dur3 = total_duration + delaytime1 + delaytime2 + delaytime3
+                turn3 = turn_duration + (delaytime3 / 2)
 
-def run_pico(ser_Ard, time_arr):
+    match turnNumber:
+        case 1: return dur1
+        case 2: return dur2
+        case 3: return dur3
+        case 4: return turn1
+        case 4: return turn2
+        case 4: return turn3
+
+
+def calc_rel_angle(time_arr, angle_arr):
+    userRPM = float(txtSpeed.get().strip().replace(',', '.'))
+    time1 = calc_individual_turns(userRPM, 1)
+    time2 = calc_individual_turns(userRPM, 2)
+    time3 = calc_individual_turns(userRPM, 3)
+
+    turn1 = calc_individual_turns(userRPM, 4)
+    turn2 = calc_individual_turns(userRPM, 5)
+    turn3 = calc_individual_turns(userRPM, 6)
+    
+    if not time_arr:
+        return 
+    
+    for i in range(len(time_arr)):
+        if time_arr[i] < turn1:
+            angle_arr.append(1)
+        elif time_arr[i] < time1:
+            angle_arr.append(2)
+        elif time_arr[i] < time2-turn2:
+            angle_arr.append(3)
+        elif time_arr[i] < time2:
+            angle_arr.append(4)
+        elif time_arr[i] < time3-turn3:
+            angle_arr.append(5)
+        elif time_arr[i] < time3:
+            angle_arr.append(6)
+
+
+    print(turn1)
+    print(time1)
+    print(time2-turn2)
+    print(time2)
+    print(time3-turn3)
+    print(time3)
+    print(angle_arr)
+    return 
+
+       
+def calc_delay():
+    return
+
+def run_pico(ser_Ard, time_arr, volt_arr):
     # pico_demo.exe neben der GUI oder mit absolutem Pfad
+    global starttime
     out_found = False
+    volt_found = False
     txtGeschw = float(txtSpeed.get().strip().replace(',', '.'))
     picoTime = calc_duration(txtGeschw)
+    print(f"Dauer ca. {picoTime}")
+    print(f"Winkellänge {totalTicks*(360/4096)}")
     picoTimeStr = str(picoTime)
     p = subprocess.Popen(
         [picoEXE, f"--time={picoTimeStr}"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
@@ -265,18 +377,31 @@ def run_pico(ser_Ard, time_arr):
             print("Sende: PICO_START") #debug
             ser_Ard.write(b"START\n")
             ser_Ard.flush()
-            print("NACH: PICO_START")
+            
             starttime = time.time()
+            print("NACH: PICO_START")
+    
+        if volt_found is True:
+            volt_arr.append(float(line))
+
+        if line.startswith("VOLT_OUT"):
+            volt_found = True 
+            out_found = False
 
         if out_found is True:
             time_arr.append(float(line))
 
         if line.startswith("OUTPUT"):
             out_found = True
+
+               
     endtime = time.time()
+    print("Time Array:")
     print(time_arr)
+    print("Volt Array:")
+    print(volt_arr)
     finishtime = endtime - starttime
-    print(finishtime)
+    print(f"Gemessene Zeit: {finishtime}")
     p.terminate()
 
 # --------------- CALC BUTTON

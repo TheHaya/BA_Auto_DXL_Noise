@@ -1,6 +1,6 @@
 {
     "01 - 107357**":{
-        "sollSpannung": 10.0,
+        "sollSpannung": 5.0,
         "sollWinkel": 330.0,
         "d11": 0.0,
         "d12": 40.0,
@@ -11,7 +11,7 @@
     },
 
     "02 - 107395":{
-        "sollSpannung": 10.0,
+        "sollSpannung": 5.0,
         "sollWinkel": 330.0,
         "d11": 0.0,
         "d12": 40.0,
@@ -22,7 +22,7 @@
     },
 
     "03 - 107396":{
-        "sollSpannung": 10.0,
+        "sollSpannung": 5.0,
         "sollWinkel": 330.0,
         "d11": 0.0,
         "d12": 40.0,
@@ -33,7 +33,7 @@
     },
 
     "04 - 107397":{
-        "sollSpannung": 10.0,
+        "sollSpannung": 5.0,
         "sollWinkel": 330.0,
         "d11": 0.0,
         "d12": 40.0,
@@ -44,7 +44,7 @@
     },
 
     "05 - 107398":{
-        "sollSpannung": 10.0,
+        "sollSpannung": 5.0,
         "sollWinkel": 330.0,
         "d11": 0.0,
         "d12": 90.0,
@@ -55,7 +55,7 @@
     },
 
     "06 - 107399":{
-        "sollSpannung": 10.0,
+        "sollSpannung": 5.0,
         "sollWinkel": 330.0,
         "d11": 0.0,
         "d12": 80.0,
@@ -66,7 +66,7 @@
     },
 
     "07 - 107445":{
-        "sollSpannung": 10.0,
+        "sollSpannung": 5.0,
         "sollWinkel": 330.0,
         "d11": 0.0,
         "d12": 40.0,
@@ -77,7 +77,7 @@
     },
 
     "08 - 107446":{
-        "sollSpannung": 10.0,
+        "sollSpannung": 5.0,
         "sollWinkel": 330.0,
         "d11": 0.0,
         "d12": 40.0,
@@ -88,7 +88,7 @@
     },
 
     "09 - 107447":{
-        "sollSpannung": 10.0,
+        "sollSpannung": 5.0,
         "sollWinkel": 330.0,
         "d11": 0.0,
         "d12": 40.0,
@@ -99,7 +99,7 @@
     },
 
     "10 - 107448":{
-        "sollSpannung": 10.0,
+        "sollSpannung": 5.0,
         "sollWinkel": 330.0,
         "d11": 0.0,
         "d12": 40.0,
@@ -110,7 +110,7 @@
     },
 
     "11 - 107449":{
-        "sollSpannung": 10.0,
+        "sollSpannung": 5.0,
         "sollWinkel": 330.0,
         "d11": 0.0,
         "d12": 40.0,
@@ -121,7 +121,7 @@
     },
 
     "12 - 107450":{
-        "sollSpannung": 10.0,
+        "sollSpannung": 5.0,
         "sollWinkel": 330.0,
         "d11": 0.0,
         "d12": 80.0,

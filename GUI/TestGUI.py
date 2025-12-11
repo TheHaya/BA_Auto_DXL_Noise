@@ -46,17 +46,17 @@ def load_presets():
         print("Fehler beim laden von Presets.", e)
 presets = load_presets()
 
-def set_entry(txtentry, decVal):
-    if isinstance(decVal, (int, float)):
-        val = f"{decVal}".replace('.' , ',')
+def set_entry(txt_entry, decimal_val):
+    if isinstance(decimal_val, (int, float)):
+        val = f"{decimal_val}".replace('.' , ',')
     else:
-        val = str(decVal)
-    txtentry.delete(0, tk.END)
-    txtentry.insert(0, val)
+        val = str(decimal_val)
+    txt_entry.delete(0, tk.END)
+    txt_entry.insert(0, val)
     
 def insert_preset(p):
-    set_entry(txtVolt, p["sollSpannung"])
-    set_entry(txtAngle, p["sollWinkel"])
+    set_entry(txt_volt, p["sollSpannung"])
+    set_entry(txt_angle, p["sollWinkel"])
 
 
 # --------------- SERIAL MIT SERVO
@@ -72,7 +72,7 @@ def open_first_available(ports=(ARDUINO_PORT1, ARDUINO_PORT2, ARDUINO_PORT3), ba
             last = e
     raise RuntimeError(f"Kein Port aus {ports} verfügbar: {last}")
 
-def write_serial(gesamtW, gesamtS, stop_event, on_finish):
+def write_serial(ges_w, ges_s, stop_event, on_finish):
     try:
         pico_time = []
         pico_turn = []
@@ -85,11 +85,11 @@ def write_serial(gesamtW, gesamtS, stop_event, on_finish):
 
         ser_Arduino = open_first_available((ARDUINO_PORT1, ARDUINO_PORT2, ARDUINO_PORT3), baud=115200, timeout=5)
         time.sleep(0.2)
-        ser_Arduino.write(f"SETW:{gesamtW}\n".encode())
+        ser_Arduino.write(f"SETW:{ges_w}\n".encode())
         time.sleep(0.2)
-        ser_Arduino.write(f"SETS:{gesamtS}\n".encode())
+        ser_Arduino.write(f"SETS:{ges_s}\n".encode())
         time.sleep(0.2)
-        print("speed ist", gesamtS)
+        print("speed ist", ges_s)
         print("Sende: GO") #debug
         ser_Arduino.write(b"GO\n")
 
@@ -105,8 +105,8 @@ def write_serial(gesamtW, gesamtS, stop_event, on_finish):
             line = ser_Arduino.readline().decode('utf-8').strip()
             #print("Empfangen:", line) #debug
             if line.startswith("ANGLE"):
-                global totalTicks
-                totalTicks = float(line[5::])
+                global total_ticks
+                total_ticks = float(line[5::])
 
             if line == 'READY':
                 print("start run_pico")
@@ -114,8 +114,8 @@ def write_serial(gesamtW, gesamtS, stop_event, on_finish):
 
             elif line == 'FINISH':
                 finish_time = time.time()
-                totalDuration = finish_time - start_time
-                print(f"FINISH empfangen, total Dauer: {totalDuration}")
+                total_duration = finish_time - start_time
+                print(f"FINISH empfangen, total Dauer: {total_duration}")
                 calc_rel_angle(pico_time, pico_turn, pico_angle)
                 mark_ends()
                 mark_noise_segments(pico_angle)
@@ -126,19 +126,19 @@ def write_serial(gesamtW, gesamtS, stop_event, on_finish):
                 break
 
             elif line.startswith("DELAY1"):
-                global delaytime1
-                delaytime1 = float(line[6::])
-                print(f"{delaytime1}")
+                global delay_time1
+                delay_time1 = float(line[6::])
+                print(f"{delay_time1}")
                 
             elif line.startswith("DELAY2"):
-                global delaytime2
-                delaytime2 = float(line[6::])
-                print(f"{delaytime2}")
+                global delay_time2
+                delay_time2 = float(line[6::])
+                print(f"{delay_time2}")
                 
             elif line.startswith("DELAY3"):
-                global delaytime3
-                delaytime3 = float(line[6::])
-                print(f"{delaytime3}")
+                global delay_time3
+                delay_time3 = float(line[6::])
+                print(f"{delay_time3}")
            
         ser_Arduino.close()
 
@@ -269,37 +269,37 @@ def go_zero(stop_event, on_finish):
 
 
 # --------------- CALC FUNCTIONS
-def calc_duration(gesSpeed):
-    totalDelay = delaytime1 + delaytime2 + delaytime3
-    userRPM = float(gesSpeed)
+def calc_duration(ges_spd):
+    total_delay = delay_time1 + delay_time2 + delay_time3
+    user_rpm = float(ges_spd)
     duration = 0
-    circleTick = 4096
+    circle_tick = 4096
     for i in range(1, 4, 1):
-        divSpeed = userRPM/2
-        duration += 2 * (60/(divSpeed*i)) * (totalTicks/circleTick)
-    duration = duration + totalDelay # wegen servo delay für jeden antrieb
+        div_spd = user_rpm/2
+        duration += 2 * (60/(div_spd*i)) * (total_ticks/circle_tick)
+    duration = duration + total_delay # wegen servo delay für jeden antrieb
     return duration
 
-def calc_individual_turns(gesSpeed, turnNumber):
-    userRPM = float(gesSpeed)
+def calc_individual_turns(ges_spd, turn_number):
+    user_rpm = float(ges_spd)
     total_duration = 0
-    circleTick = 4096
+    circle_tick = 4096
     for i in range(1, 4, 1):
-        divSpeed = userRPM/2
-        turn_duration = (60/(divSpeed*i)) * (totalTicks/circleTick)
+        div_spd = user_rpm/2
+        turn_duration = (60/(div_spd*i)) * (total_ticks/circle_tick)
         total_duration += 2 * turn_duration
         match i:
             case 1:
-                time1 = total_duration + delaytime1
-                turn1 = turn_duration + (delaytime1 / 2)
+                time1 = total_duration + delay_time1
+                turn1 = turn_duration + (delay_time1 / 2)
             case 2:
-                time2 = total_duration + delaytime1 + delaytime2
-                turn2 = turn_duration + (delaytime2 / 2)
+                time2 = total_duration + delay_time1 + delay_time2
+                turn2 = turn_duration + (delay_time2 / 2)
             case 3:
-                time3 = total_duration + delaytime1 + delaytime2 + delaytime3
-                turn3 = turn_duration + (delaytime3 / 2)
+                time3 = total_duration + delay_time1 + delay_time2 + delay_time3
+                turn3 = turn_duration + (delay_time3 / 2)
 
-    match turnNumber:
+    match turn_number:
         case 1: return time1
         case 2: return time2
         case 3: return time3
@@ -308,14 +308,14 @@ def calc_individual_turns(gesSpeed, turnNumber):
         case 6: return turn3
 
 def calc_rel_angle(time_arr, turn_arr, angle_arr):
-    userRPM = float(txtSpeed.get().strip().replace(',', '.'))
-    time1 = calc_individual_turns(userRPM, 1)
-    time2 = calc_individual_turns(userRPM, 2)
-    time3 = calc_individual_turns(userRPM, 3)
+    user_rpm = float(txt_speed.get().strip().replace(',', '.'))
+    time1 = calc_individual_turns(user_rpm, 1)
+    time2 = calc_individual_turns(user_rpm, 2)
+    time3 = calc_individual_turns(user_rpm, 3)
 
-    turn1 = calc_individual_turns(userRPM, 4)
-    turn2 = calc_individual_turns(userRPM, 5)
-    turn3 = calc_individual_turns(userRPM, 6)
+    turn1 = calc_individual_turns(user_rpm, 4)
+    turn2 = calc_individual_turns(user_rpm, 5)
+    turn3 = calc_individual_turns(user_rpm, 6)
     
     if not time_arr:
         return 
@@ -360,13 +360,13 @@ def run_pico(ser_Ard, time_arr, volt_arr, plot_arr):
     out_found = False
     plot_volt = False
     plot_time = False
-    txtGeschw = float(txtSpeed.get().strip().replace(',', '.'))
-    picoTime = calc_duration(txtGeschw)
-    print(f"Dauer ca. {picoTime}")
-    print(f"Winkellänge {totalTicks*(360/4096)}")
-    picoTimeStr = str(picoTime+delay_compensation)
+    txt_geschw = float(txt_speed.get().strip().replace(',', '.'))
+    pico_time = calc_duration(txt_geschw)
+    print(f"Dauer ca. {pico_time}")
+    print(f"Winkellänge {total_ticks*(360/4096)}")
+    pico_timeStr = str(pico_time+delay_compensation)
     p = subprocess.Popen(
-        [picoEXE, f"--time={picoTimeStr}"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        [picoEXE, f"--time={pico_timeStr}"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
         text=True, bufsize=1
     )
     for line in p.stdout:
@@ -408,8 +408,8 @@ def run_pico(ser_Ard, time_arr, volt_arr, plot_arr):
     #print(volt_arr)
     #print("Plot Array:")
     #print(plot_arr)
-    finishtime = end_time - start_time
-    print(f"Gemessene Zeit: {finishtime}")
+    finish_time = end_time - start_time
+    print(f"Gemessene Zeit: {finish_time}")
     p.terminate()
 
 
@@ -426,7 +426,7 @@ def open_calc_win():
             
             cancelled_win = tk.Toplevel(root)
             cancelled_win.title("Abbruch")
-            cancelled_win.geometry(f"{scrwid//4}x{scrhei//4}+{scrwid//2}+{scrhei//2}")
+            cancelled_win.geometry(f"{scr_wid//4}x{scr_hei//4}+{scr_wid//2}+{scr_hei//2}")
             cancelled_win.grid_rowconfigure(0, weight=1)
             cancelled_win.grid_rowconfigure(1, weight=1)
             cancelled_win.grid_columnconfigure(0, weight=1)
@@ -443,7 +443,7 @@ def open_calc_win():
             """
             calc_win = tk.Toplevel(root)
             calc_win.title("Fertig")
-            calc_win.geometry(f"{scrwid//4}x{scrhei//4}+{scrwid//2}+{scrhei//2}")
+            calc_win.geometry(f"{scr_wid//4}x{scr_hei//4}+{scr_wid//2}+{scr_hei//2}")
             calc_win.grid_rowconfigure(0, weight=1)
             calc_win.grid_rowconfigure(1, weight=1)
             calc_win.grid_columnconfigure(0, weight=1)
@@ -455,14 +455,14 @@ def open_calc_win():
             calc_win.bind("<Return>", lambda event: ok_button.invoke())
             """
     try:
-        txtSoll = float(txtVolt.get().strip().replace(',', '.'))
-        txtWinkel = float(txtAngle.get().strip().replace(',', '.'))
-        txtGeschw = float(txtSpeed.get().strip().replace(',', '.'))
+        txt_soll = float(txt_volt.get().strip().replace(',', '.'))
+        txt_winkel = float(txt_angle.get().strip().replace(',', '.'))
+        txt_geschw = float(txt_speed.get().strip().replace(',', '.'))
 
     except ValueError:
         error_win = tk.Toplevel(root)
         error_win.title("Falsche Eingabe!")
-        error_win.geometry(f"{scrwid//8}x{scrhei//8}+{scrwid//2}+{scrhei//2}")
+        error_win.geometry(f"{scr_wid//8}x{scr_hei//8}+{scr_wid//2}+{scr_hei//2}")
         error_win.resizable(False, False)
         error_win.transient(root)
         error_win.grab_set()
@@ -479,7 +479,7 @@ def open_calc_win():
         
     wait_win = tk.Toplevel(root)
     wait_win.title("Datenmessung")
-    wait_win.geometry(f"{scrwid//8}x{scrhei//8}+{scrwid//2}+{scrhei//2}")
+    wait_win.geometry(f"{scr_wid//8}x{scr_hei//8}+{scr_wid//2}+{scr_hei//2}")
     wait_win.transient(root)
     wait_win.grab_set()
     wait_win.resizable(False, False)
@@ -493,7 +493,7 @@ def open_calc_win():
     wait_win.protocol("WM_DELETE_WINDOW", cancel_close)
 
 
-    threading.Thread(target=write_serial, args=(txtWinkel, txtGeschw, 
+    threading.Thread(target=write_serial, args=(txt_winkel, txt_geschw, 
                                                    stop_event, close_wait_results), daemon=True).start()
 
     
@@ -507,7 +507,7 @@ def open_zero_window():
             
             cancelled_win = tk.Toplevel(root)
             cancelled_win.title("Abbruch")
-            cancelled_win.geometry(f"{scrwid//4}x{scrhei//4}+{scrwid//2}+{scrhei//2}")
+            cancelled_win.geometry(f"{scr_wid//4}x{scr_hei//4}+{scr_wid//2}+{scr_hei//2}")
             cancelled_win.grid_rowconfigure(0, weight=1)
             cancelled_win.grid_rowconfigure(1, weight=1)
             cancelled_win.grid_columnconfigure(0, weight=1)
@@ -524,7 +524,7 @@ def open_zero_window():
 
             calc_win = tk.Toplevel(root)
             calc_win.title("Fertig")
-            calc_win.geometry(f"{scrwid//4}x{scrhei//4}+{scrwid//2}+{scrhei//2}")
+            calc_win.geometry(f"{scr_wid//4}x{scr_hei//4}+{scr_wid//2}+{scr_hei//2}")
             calc_win.grid_rowconfigure(0, weight=1)
             calc_win.grid_rowconfigure(1, weight=1)
             calc_win.grid_columnconfigure(0, weight=1)
@@ -537,7 +537,7 @@ def open_zero_window():
         
     wait_win = tk.Toplevel(root)
     wait_win.title("Position nullen")
-    wait_win.geometry(f"{scrwid//8}x{scrhei//8}+{scrwid//2}+{scrhei//2}")
+    wait_win.geometry(f"{scr_wid//8}x{scr_hei//8}+{scr_wid//2}+{scr_hei//2}")
     wait_win.transient(root)
     wait_win.grab_set()
     wait_win.resizable(False, False)
@@ -573,9 +573,9 @@ if __name__ == "__main__":
 
 # --------------- GUI
 root = tk.Tk()
-scrwid = root.winfo_screenwidth()
-scrhei = root.winfo_screenheight()
-root.geometry(f"{scrwid - scrwid//5}x{scrhei - scrhei//5}+0+0")
+scr_wid = root.winfo_screenwidth()
+scr_hei = root.winfo_screenheight()
+root.geometry(f"{scr_wid - scr_wid//5}x{scr_hei - scr_hei//5}+0+0")
 root.title("Rauschprüfung")
 root.resizable(False, False)
 
@@ -621,18 +621,18 @@ txt9 = ttk.Entry(left_frame, width=20)
 txt9.grid(row=5, column=0, pady=(0, 10), padx=(20,0))
 
 ttk.Label(right_frame, text="Sollspannung in V:").grid(row=1, column=0, sticky="w", pady=(40, 0), padx=(10,0))
-txtVolt = ttk.Entry(right_frame, width=20, validate="key", validatecommand=vcmd)
-txtVolt.grid(row=2, column=0, pady=(0, 0), padx=(0,0))
-txtVolt.insert(0, "5,0")
-txtVolt.focus_set()
-ttk.Label(right_frame, text="Gesamtwinkel in Grad:").grid(row=3, column=0, sticky="w", pady=(40, 0), padx=(10,0))
-txtAngle = ttk.Entry(right_frame, width=20, validate="key", validatecommand=vcmd)
-txtAngle.grid(row=4, column=0, pady=(0, 0), padx=(0,0))
-txtAngle.insert(0, "330,0")
+txt_volt = ttk.Entry(right_frame, width=20, validate="key", validatecommand=vcmd)
+txt_volt.grid(row=2, column=0, pady=(0, 0), padx=(0,0))
+txt_volt.insert(0, "5,0")
+txt_volt.focus_set()
+ttk.Label(right_frame, text="ges_winkel in Grad:").grid(row=3, column=0, sticky="w", pady=(40, 0), padx=(10,0))
+txt_angle = ttk.Entry(right_frame, width=20, validate="key", validatecommand=vcmd)
+txt_angle.grid(row=4, column=0, pady=(0, 0), padx=(0,0))
+txt_angle.insert(0, "330,0")
 ttk.Label(right_frame, text="Max. Geschwindigkeit in U/min:").grid(row=5, column=0, sticky="w", pady=(40, 0), padx=(10,0))
-txtSpeed = ttk.Entry(right_frame, width=20, validate="key", validatecommand=vcmd)
-txtSpeed.grid(row=6, column=0, pady=(0, 0), padx=(0,0))
-txtSpeed.insert(0, "60,0")
+txt_speed = ttk.Entry(right_frame, width=20, validate="key", validatecommand=vcmd)
+txt_speed.grid(row=6, column=0, pady=(0, 0), padx=(0,0))
+txt_speed.insert(0, "60,0")
 
 
 
@@ -649,8 +649,8 @@ ttk.Button(left_frame, text="Position 0", command=open_zero_window).grid(row=8, 
 # ttk.Button(left_frame, text="Curr Position", command=curr_Pos).grid(row=8, column=1, pady=(4, 5), padx=(0,0), ipadx=40)
 # ttk.Button(left_frame, text="Go To", command=goto).grid(row=4, column=1, pady=(4, 5), padx=(0,0), ipadx=40)
 
-txtVolt.bind("<Return>", lambda event: open_calc_win())
-txtAngle.bind("<Return>", lambda event: open_calc_win())
+txt_volt.bind("<Return>", lambda event: open_calc_win())
+txt_angle.bind("<Return>", lambda event: open_calc_win())
 root.bind("<Escape>", lambda event: close_window())
 
 
@@ -680,7 +680,7 @@ def build_ring(frame):
 
 def mark_ends():
     fix_direction = -90
-    line_span = (totalTicks/4096)*360
+    line_span = (total_ticks/4096)*360
     line_side = line_span/2
     L = 50
 

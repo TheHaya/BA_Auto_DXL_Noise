@@ -552,15 +552,15 @@ def open_zero_window():
 
 
 # --------------- PDF EXPORT RAUSCHKURVE
-def save_to_pdf(filename="Rauschkurve.pdf", title="Rauschkurve"):
-    fig = plt.figure(figsize=(6.4, 4.0), dpi=150)  # Größe beliebig anpassen
-    plt.plot(pico_plot_time, pico_plot_volt, linewidth=1.5)
-    plt.title(title)
+def save_to_pdf():
+    fig = plt.figure(figsize=(11, 6.5), dpi=550)  # Größe beliebig anpassen
+    plt.plot(pico_plot_time, pico_plot_volt, linewidth=0.1)
+    plt.title(("Rauschkurve "+ txt9.get()))
     plt.xlabel("Zeit")
     plt.ylabel("Spannung")
     plt.grid(True, linestyle="--", linewidth=0.6, alpha=0.6)
     plt.tight_layout()
-    fig.savefig(filename, format="pdf")  # Vektor-PDF
+    fig.savefig((txt9.get()+".pdf"), format="pdf")  # Vektor-PDF
     plt.close(fig)
 """
 if __name__ == "__main__":

@@ -358,8 +358,6 @@ def calc_rel_angle(time_arr, turn_arr, angle_arr):
     print(angle_arr)
     return 
 
-def calc_delay():
-    return
 
 def run_pico(ser_Ard, time_arr, volt_arr, pdf_time_arr, plot_volt_arr, plot_arr):
     global start_time
@@ -646,7 +644,7 @@ txt_volt = ttk.Entry(right_frame, width=20, validate="key", validatecommand=vcmd
 txt_volt.grid(row=2, column=0, pady=(0, 0), padx=(0,0))
 txt_volt.insert(0, "5,0")
 txt_volt.focus_set()
-ttk.Label(right_frame, text="ges_winkel in Grad:").grid(row=3, column=0, sticky="w", pady=(40, 0), padx=(10,0))
+ttk.Label(right_frame, text="Gesamtwinkel in Grad:").grid(row=3, column=0, sticky="w", pady=(40, 0), padx=(10,0))
 txt_angle = ttk.Entry(right_frame, width=20, validate="key", validatecommand=vcmd)
 txt_angle.grid(row=4, column=0, pady=(0, 0), padx=(0,0))
 txt_angle.insert(0, "330,0")

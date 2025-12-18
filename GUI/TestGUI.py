@@ -5,6 +5,7 @@ from PIL import ImageTk, Image
 import sv_ttk
 import serial, time, threading, json, subprocess, math
 import matplotlib.pyplot as plt
+import numpy as np
 
 # --------------- SERIAL VARIABLES
 ARDUINO_PORT1 = "COM3"
@@ -74,10 +75,15 @@ def open_first_available(ports=(ARDUINO_PORT1, ARDUINO_PORT2, ARDUINO_PORT3), ba
 
 def write_serial(ges_w, ges_s, stop_event, on_finish):
     try:
+        global pico_pdf_time
+        pico_pdf_time = []
+        global pico_time
         pico_time = []
         pico_turn = []
         global pico_angle
         pico_angle = []
+        global pico_volt
+        pico_volt = []
         global pico_plot_time
         pico_plot_time.clear()
         global pico_plot_volt
@@ -110,7 +116,7 @@ def write_serial(ges_w, ges_s, stop_event, on_finish):
 
             if line == 'READY':
                 print("start run_pico")
-                run_pico(ser_Arduino, pico_time, pico_plot_volt, pico_plot_time)
+                run_pico(ser_Arduino, pico_time, pico_volt, pico_pdf_time, pico_plot_volt, pico_plot_time)
 
             elif line == 'FINISH':
                 finish_time = time.time()
@@ -355,8 +361,9 @@ def calc_rel_angle(time_arr, turn_arr, angle_arr):
 def calc_delay():
     return
 
-def run_pico(ser_Ard, time_arr, volt_arr, plot_arr):
+def run_pico(ser_Ard, time_arr, volt_arr, pdf_time_arr, plot_volt_arr, plot_arr):
     global start_time
+    out_volt = False
     out_found = False
     plot_volt = False
     plot_time = False
@@ -381,15 +388,23 @@ def run_pico(ser_Ard, time_arr, volt_arr, plot_arr):
             start_time = time.time()
             print("NACH: PICO_START")
         
+        if out_volt is True:
+            volt_arr.append(float(line))
+
+        if line.startswith("OUTPUV"):
+            out_volt = True
+            out_found = False
+
         if out_found is True:
             time_arr.append(float(line)-delay_compensation)
+            pdf_time_arr.append(float(line))
 
         if line.startswith("OUTPUT"):
             out_found = True
             plot_volt = False
 
         if plot_volt is True:
-            volt_arr.append(float(line))
+            plot_volt_arr.append(float(line))
 
         if line.startswith("PLOT_VOLT"):
             plot_volt = True 
@@ -405,7 +420,7 @@ def run_pico(ser_Ard, time_arr, volt_arr, plot_arr):
     print("Time Array:")
     print(time_arr)
     #print("Volt Array:")
-    #print(volt_arr)
+    #print(plot_volt_arr)
     #print("Plot Array:")
     #print(plot_arr)
     finish_time = end_time - start_time
@@ -553,8 +568,14 @@ def open_zero_window():
 
 # --------------- PDF EXPORT RAUSCHKURVE
 def save_to_pdf():
+    pdf_time = np.concatenate([pico_plot_time, pico_pdf_time])
+    pdf_volt = np.concatenate([pico_plot_volt + pico_volt])
+    i = np.argsort(pdf_time)
+    pdf_time = pdf_time[i]
+    pdf_volt = pdf_volt[i]
+
     fig = plt.figure(figsize=(11, 6.5), dpi=550)  # Größe beliebig anpassen
-    plt.plot(pico_plot_time, pico_plot_volt, linewidth=0.1)
+    plt.plot(pdf_time, pdf_volt, linewidth=0.1)
     plt.title(("Rauschkurve "+ txt9.get()))
     plt.xlabel("Zeit")
     plt.ylabel("Spannung")
@@ -707,12 +728,31 @@ def mark_noise_segments(angle_arr, color="#ff0000"):
     global noise_times
     fix_direction = -90
 
+    angle_pos = [0] * 73
+    angle_mult = 5
+    for i in range(1, len(angle_pos), 1):
+        for j in range(len(angle_arr)):
+            if angle_arr[j] < angle_mult * i and angle_arr[j] >= angle_mult * (i-1):
+                angle_pos[i] = 1
+                break
+    
+    for i in range(1, len(angle_pos),1):
+        tol_left = angle_mult*i + fix_direction+2.5
+        tol_right = -5
+        if(angle_pos[i] == 1):
+            iid = ring_canvas.create_arc(ring_box, start=tol_left, extent=tol_right,
+                                     style="arc", width=ring_thickness+10, outline="#ff0000")
+            noise_times.append(iid)
+
+
+    """
     for i in range(len(angle_arr)):
         tol_left = angle_arr[i]+fix_direction+2.5
         tol_right = -5
         iid = ring_canvas.create_arc(ring_box, start=tol_left, extent=tol_right,
                                      style="arc", width=ring_thickness+10, outline="#ff0000")
         noise_times.append(iid)
+        """
 
 def set_circle_text():
     x0, y0, x1, y1 = ring_box

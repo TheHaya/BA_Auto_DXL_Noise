@@ -670,6 +670,7 @@ ttk.Button(left_frame, text="Position 0", command=open_zero_window).grid(row=8, 
 
 txt_volt.bind("<Return>", lambda event: open_calc_win())
 txt_angle.bind("<Return>", lambda event: open_calc_win())
+txt9.bind("<Return>", lambda event: open_calc_win())
 root.bind("<Escape>", lambda event: close_window())
 
 
@@ -735,8 +736,8 @@ def mark_noise_segments(angle_arr, color="#ff0000"):
                 break
     
     for i in range(1, len(angle_pos),1):
-        tol_left = angle_mult*i + fix_direction+2.5
-        tol_right = -5
+        tol_left = angle_mult*i + fix_direction+3
+        tol_right = -6
         if(angle_pos[i] == 1):
             iid = ring_canvas.create_arc(ring_box, start=tol_left, extent=tol_right,
                                      style="arc", width=ring_thickness+10, outline="#ff0000")
